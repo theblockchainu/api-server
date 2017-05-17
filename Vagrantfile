@@ -22,7 +22,7 @@ Vagrant.configure("2") do |config|
   # Create a forwarded port mapping which allows access to a specific port
   # within the machine from a port on the host machine. In the example below,
   # accessing "localhost:8080" will access port 80 on the guest machine.
-  config.vm.network "forwarded_port", guest: 3000, host: 1290
+  config.vm.network "forwarded_port", guest: 3000, host: 3000
   config.vm.network "forwarded_port", guest: 7474, host: 7474
   config.vm.network "forwarded_port", guest: 7687, host: 7687
   config.vm.network "forwarded_port", guest: 7473, host: 7473
@@ -53,6 +53,9 @@ Vagrant.configure("2") do |config|
   #   # Customize the amount of memory on the VM:
   #   vb.memory = "1024"
   # end
+  config.vm.provider "virtualbox" do |v|
+      v.customize ["setextradata", :id, "VBoxInternal2/SharedFoldersEnableSymlinksCreate/v-root", "1"]
+  end
   #
   # View the documentation for the provider you are using for more
   # information on available options.
@@ -72,8 +75,8 @@ Vagrant.configure("2") do |config|
     #chef.chef_server_url = "https://chef-automate-pb-dev-9ys6bvyfllzbhhzm.us-west-2.opsworks-cm.io/organizations/default"
     #chef.validation_key_path = "validation.pem"
     #chef.validation_client_name = "default-validator"
-    chef.cookbooks_path = ["provisioning/cookbooks", "provisioning/berks-cookbooks"]
-    chef.add_recipe "devserver"
+    #chef.cookbooks_path = ["provisioning/cookbooks", "provisioning/berks-cookbooks"]
+    #chef.add_recipe "devserver"
     #chef.add_recipe "neo4j-server::tarball"
   end
 end

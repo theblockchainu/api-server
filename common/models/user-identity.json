@@ -1,0 +1,41 @@
+{
+  "name": "userIdentity",
+  "plural": "userIdentities",
+  "base": "UserIdentity",
+  "properties": {
+    "provider": {
+      "type": "string"
+    },
+    "externalId": {
+      "type": "string"
+    },
+    "authScheme": {
+      "type": "string"
+    },
+    "profile": {
+      "type": "string"
+    },
+    "credentials": {
+      "type": "string"
+    },
+    "userId": {
+      "type": "string"
+    },
+    "created": {
+      "type": "string"
+    },
+    "modified": {
+      "type": "string"
+    }
+  },
+  "validations": [],
+  "relations": {
+    "user": {
+      "type": "belongsTo",
+      "model": "peer",
+      "foreignKey": "userId"
+    }
+  },
+  "acls": [],
+  "methods": {}
+}

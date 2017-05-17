@@ -6,6 +6,10 @@
     "validateUpsert": true,
     "caseSensitiveEmail": true
   },
+  "hidden": [
+    "password",
+    "verificationToken"
+  ],
   "properties": {
     "id": {
       "type": "number",
@@ -24,10 +28,13 @@
     "phone": {
       "type": "number"
     },
-    "emailVerified": "boolean",
-    "verificationToken": "string"
+    "emailVerified": {
+      "type": "boolean"
+    },
+    "verificationToken": {
+      "type": "string"
+    }
   },
-  "hidden": ["password", "verificationToken"],
   "validations": [],
   "relations": {
     "userTokens": {
@@ -37,6 +44,27 @@
       "options": {
         "disableInclude": true
       }
+    },
+    "identities": {
+      "type": "hasMany",
+      "model": "userIdentity",
+      "foreignKey": "userId",
+      "options": {
+        "disableInclude": true
+      }
+    },
+    "credentials": {
+      "type": "hasMany",
+      "model": "userCredential",
+      "foreignKey": "userId",
+      "options": {
+        "disableInclude": true
+      }
+    },
+    "hasProfile": {
+      "type": "hasOne",
+      "model": "profile",
+      "foreignKey": "userId"
     }
   },
   "acls": [],
