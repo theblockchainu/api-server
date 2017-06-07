@@ -46,6 +46,26 @@ module.exports = function setupCron(server) {
                 })
             });
         });
+
+        // Index all collections
+        server.models.collection.find(function (err, collectionInstances) {
+            makebulk(collectionInstances, 'collection', function(response){
+                console.log("Bulk content prepared: " + JSON.stringify(response));
+                indexall(response, 'collection', function(response){
+                    console.log(response);
+                })
+            });
+        });
+
+        // Index all topics
+        server.models.topic.find(function (err, topicInstances) {
+            makebulk(topicInstances, 'topic', function(response){
+                console.log("Bulk content prepared: " + JSON.stringify(response));
+                indexall(response, 'topic', function(response){
+                    console.log(response);
+                })
+            });
+        });
     }, function() {
         // Callback function when job ends.
     },
