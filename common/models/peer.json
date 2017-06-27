@@ -6,6 +6,25 @@
     "validateUpsert": true,
     "caseSensitiveEmail": true
   },
+  "mixins": {
+    "HasOne": {
+      "relations": [
+        {
+          "model": "profile",
+          "hasManyRelation": "profiles",
+          "autoCreate": true
+        }
+      ]
+    },
+    "PatchMany": {
+      "relations": [
+        {
+          "model": "topic",
+          "hasManyRelation": "topics"
+        }
+      ]
+    }
+  },
   "hidden": [
     "password",
     "verificationToken"
@@ -48,10 +67,7 @@
     "identities": {
       "type": "hasMany",
       "model": "userIdentity",
-      "foreignKey": "userId",
-      "options": {
-        "disableInclude": true
-      }
+      "foreignKey": "userId"
     },
     "credentials": {
       "type": "hasMany",
@@ -89,18 +105,25 @@
       "through": "peer_has_following",
       "keyThrough": "targetId"
     },
-    "profile": {
+    "profiles": {
       "type": "hasMany",
       "model": "profile",
       "foreignKey": "sourceId",
       "through": "peer_has_profile",
       "keyThrough": "targetId"
     },
-    "comments": {
+    "invites": {
       "type": "hasMany",
-      "model": "comment",
+      "model": "peer_invite",
       "foreignKey": "sourceId",
-      "through": "comment_givenby_peer",
+      "through": "peer_has_invited",
+      "keyThrough": "targetId"
+    },
+    "joinedrooms": {
+      "type": "hasMany",
+      "model": "room",
+      "foreignKey": "sourceId",
+      "through": "peer_has_joinedroom",
       "keyThrough": "targetId"
     }
   },

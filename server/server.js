@@ -7,6 +7,7 @@ var cookieParser = require('cookie-parser');
 var session = require('express-session');
 var SALT_WORK_FACTOR = 10;
 var g = require('../node_modules/loopback/lib/globalize');
+var cors = require('cors');
 var bcrypt;
 var MAX_PASSWORD_LENGTH = 72;
 
@@ -24,7 +25,7 @@ try {
 }
 
 // Passport configurators..
-var loopbackPassport = require('loopback-component-passport');
+var loopbackPassport = require('loopback-component-passport-neo4j');
 var PassportConfigurator = loopbackPassport.PassportConfigurator;
 var passportConfigurator = new PassportConfigurator(app);
 
@@ -61,6 +62,21 @@ try {
 var path = require('path');
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
+
+// Middlewars to enable cors on the server
+var originsWhitelist = [
+    'null',
+    'localhost:9090',      //frontend url for development
+    'http://www.peedbuds.com'
+];
+var corsOptions = {
+    origin: function(origin, callback){
+        var isWhitelisted = originsWhitelist.indexOf(origin) !== -1;
+        callback(null, isWhitelisted);
+    },
+    credentials:true
+};
+app.use(cors(corsOptions));
 
 
 // Bootstrap the application, configure models, datasources and middleware.
@@ -145,6 +161,8 @@ app.post('/signup', function (req, res, next) {
     newUser.username = req.body.username.trim();
     newUser.password = req.body.password;
 
+    var returnTo = req.headers.referer + req.query.returnTo;
+
     var hashedPassword = '';
     var query;
     if (newUser.email && newUser.username) {
@@ -225,11 +243,11 @@ app.post('/signup', function (req, res, next) {
                         signed: req.signedCookies ? true : false,
                         maxAge: 1000 * accessToken[0].token.properties.ttl,
                     });
-                    //return res.redirect('/auth/account');
-                    return res.json({
+                    return res.redirect(returnTo);
+                    /*return res.json({
                         'access_token': accessToken[0].token.properties.id,
                         userId: user.id
-                    });
+                    });*/
                 });
             } else {
                 console.log("no access token");
@@ -329,5 +347,37 @@ app.start = function () {
 
 // start the server if `$ node server.js`
 if (require.main === module) {
-    app.start();
+    app.io = require('socket.io')(app.start());
+
+    require('socketio-auth')(app.io, {
+        authenticate: function (socket, value, callback) {
+
+            var AccessToken = app.models.UserToken;
+            //get credentials sent by the client
+            var token = AccessToken.find({
+                where:{
+                    and: [{ userId: value.userId }, { access_token: value.access_token }]
+                }
+            }, function(err, tokenDetail){
+                if (err) throw err;
+                if(tokenDetail.length){
+                    callback(null, true);
+                } else {
+                    callback(null, false);
+                }
+            }); //find function..
+        } //authenticate function..
+    });
+
+    app.io.on('connection', function(socket) {
+        console.log('a user connected');
+
+        socket.on('subscribe', function(room) {
+            console.log('joining room', room);
+            socket.join(room);
+        });
+        socket.on('disconnect', function(){
+           console.log('user disconnected');
+        });
+    });
 }

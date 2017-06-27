@@ -1,0 +1,39 @@
+{
+  "name": "collection_has_calendar",
+  "base": "PersistedModel",
+  "idInjection": true,
+  "options": {
+    "validateUpsert": true
+  },
+  "neo4j": {
+    "sourceModel": "collection",
+    "targetModel": "calendar"
+  },
+  "properties": {
+    "id": {
+      "type": "string",
+      "id": true
+    },
+    "sourceId": {
+      "type": "string"
+    },
+    "targetId": {
+      "type": "string"
+    }
+  },
+  "validations": [],
+  "relations": {
+    "collection": {
+      "type": "belongsTo",
+      "model": "collection",
+      "foreignKey": "sourceId"
+    },
+    "calendar": {
+      "type": "belongsTo",
+      "model": "calendar",
+      "foreignKey": "targetId"
+    }
+  },
+  "acls": [],
+  "methods": {}
+}

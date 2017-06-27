@@ -1,0 +1,38 @@
+{
+  "name": "message_has_owner",
+  "base": "PersistedModel",
+  "idInjection": true,
+  "options": {
+    "validateUpsert": true
+  },
+  "neo4j": {
+    "sourceModel": "message",
+    "targetModel": "peer"
+  },
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "sourceId": {
+      "type": "string"
+    },
+    "targetId": {
+      "type": "string"
+    }
+  },
+  "validations": [],
+  "relations": {
+    "message": {
+      "type": "belongsTo",
+      "model": "message",
+      "foreignKey": "sourceId"
+    },
+    "peer": {
+      "type": "belongsTo",
+      "model": "peer",
+      "foreignKey": "targetId"
+    }
+  },
+  "acls": [],
+  "methods": {}
+}

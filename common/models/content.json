@@ -3,6 +3,17 @@
   "plural": "contents",
   "base": "PersistedModel",
   "idInjection": true,
+  "mixins": {
+    "HasOne": {
+      "relations": [
+        {
+          "model": "schedule",
+          "hasManyRelation": "schedules",
+          "autoCreate": true
+        }
+      ]
+    }
+  },
   "options": {
     "validateUpsert": true
   },
@@ -30,17 +41,19 @@
   },
   "validations": [],
   "relations": {
-    "calendar": {
-      "type": "hasOne",
-      "model": "content_calendar",
-      "foreignKey": "content_id"
-    },
     "collections": {
       "type": "hasMany",
       "model": "collection",
       "foreignKey": "targetId",
-      "through": "hasContent",
+      "through": "collection_has_content",
       "keyThrough": "sourceId"
+    },
+    "schedules": {
+      "type": "hasMany",
+      "model": "schedule",
+      "foreignKey": "sourceId",
+      "through": "content_has_schedule",
+      "keyThrough": "targetId"
     }
   },
   "acls": [],

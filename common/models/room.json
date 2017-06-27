@@ -1,0 +1,32 @@
+{
+  "name": "room",
+  "base": "PersistedModel",
+  "idInjection": true,
+  "options": {
+    "validateUpsert": true
+  },
+  "properties": {
+    "name": {
+      "type": "string"
+    }
+  },
+  "validations": [],
+  "relations": {
+    "messages": {
+      "type": "hasMany",
+      "model": "message",
+      "foreignKey": "targetId",
+      "through": "room_has_message",
+      "keyThrough": "sourceId"
+    },
+    "peers": {
+      "type": "hasMany",
+      "model": "peer",
+      "foreignKey": "targetId",
+      "through": "peer_has_joinedroom",
+      "keyThrough": "sourceId"
+    }
+  },
+  "acls": [],
+  "methods": {}
+}

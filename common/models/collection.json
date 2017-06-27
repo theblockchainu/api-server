@@ -5,44 +5,77 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "AddPeerRelation": {
+      "relationName": [
+        "reviews",
+        "comments",
+        "upvotes",
+        "downvotes"
+      ]
+    },
+    "HasOne": {
+      "relations": [
+        {
+          "model": "calendar",
+          "hasManyRelation": "calendars",
+          "autoCreate": true
+        }
+      ]
+    }
+  },
   "properties": {
     "id": {
       "type": "string",
       "id": true
     },
-    "peerId": {
-      "type": "string",
-      "required": true
-    },
     "title": {
-      "type": "string",
-      "required": true
-    },
-    "bio_text": {
       "type": "string"
     },
-    "bio_image": {
+    "stage": {
       "type": "string"
     },
-    "bio_video": {
+    "language": {
+      "type": [
+        "string"
+      ]
+    },
+    "headline": {
       "type": "string"
     },
-    "type": {
+    "description": {
       "type": "string"
     },
-    "start_date": {
-      "type": "date"
+    "prerequisites": {
+      "type": "string"
     },
-    "end_date": {
-      "type": "date"
+    "maxSpots": {
+      "type": "string"
     },
-    "max_participants": {
+    "videoUrl": {
+      "type": "string"
+    },
+    "imageUrls": {
+      "type": [
+        "string"
+      ]
+    },
+    "repeatFrequency": {
+      "type": "string"
+    },
+    "price": {
       "type": "number"
     },
-    "prize_money_amount": {
-      "type": "number"
+    "currency": {
+      "type": "string"
     },
-    "prize_money_currency": {
+    "CancellationPolicy": {
+      "type": "string"
+    },
+    "aboutHost": {
+      "type": "string"
+    },
+    "notes": {
       "type": "string"
     },
     "created": {
@@ -63,28 +96,28 @@
       "type": "hasMany",
       "model": "view",
       "foreignKey": "sourceId",
-      "through": "hasView",
+      "through": "collection_has_view",
       "keyThrough": "targetId"
     },
     "topics": {
       "type": "hasMany",
       "model": "topic",
       "foreignKey": "sourceId",
-      "through": "hasTopic",
+      "through": "collection_has_topic",
       "keyThrough": "targetId"
     },
     "contents": {
       "type": "hasMany",
       "model": "content",
       "foreignKey": "sourceId",
-      "through": "hasContent",
+      "through": "collection_has_content",
       "keyThrough": "targetId"
     },
     "reviews": {
       "type": "hasMany",
       "model": "review",
       "foreignKey": "sourceId",
-      "through": "hasReview",
+      "through": "collection_has_review",
       "keyThrough": "targetId"
     },
     "participants": {
@@ -94,25 +127,18 @@
       "through": "collection_has_participant",
       "keyThrough": "targetId"
     },
-    "comments": {
+    "invites": {
       "type": "hasMany",
-      "model": "comment",
+      "model": "peer_invite",
       "foreignKey": "sourceId",
-      "through": "collection_has_comment",
+      "through": "collection_has_invite",
       "keyThrough": "targetId"
     },
-    "upvotes": {
+    "calendars": {
       "type": "hasMany",
-      "model": "upvote",
+      "model": "calendar",
       "foreignKey": "sourceId",
-      "through": "collection_has_upvote",
-      "keyThrough": "targetId"
-    },
-    "downvotes": {
-      "type": "hasMany",
-      "model": "downvote",
-      "foreignKey": "sourceId",
-      "through": "collection_has_downvote",
+      "through": "collection_has_calendar",
       "keyThrough": "targetId"
     }
   },
