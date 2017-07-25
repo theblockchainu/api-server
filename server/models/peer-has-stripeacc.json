@@ -1,13 +1,13 @@
 {
-  "name": "collection_has_calendar",
+  "name": "peer_has_stripeacc",
   "base": "PersistedModel",
   "idInjection": true,
   "options": {
     "validateUpsert": true
   },
   "neo4j": {
-    "sourceModel": "collection",
-    "targetModel": "calendar"
+    "sourceModel": "peer",
+    "targetModel": "stripeacc"
   },
   "properties": {
     "id": {
@@ -23,14 +23,14 @@
   },
   "validations": [],
   "relations": {
-    "collection": {
+    "peer": {
       "type": "belongsTo",
-      "model": "collection",
+      "model": "peer",
       "foreignKey": "sourceId"
     },
-    "calendar": {
+    "stripeacc": {
       "type": "belongsTo",
-      "model": "calendar",
+      "model": "stripeacc",
       "foreignKey": "targetId"
     }
   },

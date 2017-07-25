@@ -353,11 +353,11 @@ module.exports = function (Peer) {
         var pkName = ctx.Model.definition.idName() || 'id';
         ctx.Model.find({where: ctx.where, fields: [pkName]}, function(err, list) {
             if (err) return next(err);
-
+    
             var ids = list.map(function(u) { return u[pkName]; });
             ctx.where = {};
             ctx.where[pkName] = {inq: ids};
-
+    
             AccessToken.destroyAll({userId: {inq: ids}}, next);
         });
     });*/
@@ -421,17 +421,16 @@ module.exports = function (Peer) {
         return cb.promise;
     };
 
-    Peer.prototype.createProfile = function (profileModel, user, cb) {
+    Peer.prototype.createProfile = function (profileModel, profileObject, user, cb) {
         if (cb === undefined && typeof options === 'function') {
             // createAccessToken(ttl, cb)
             cb = options;
             options = undefined;
         }
         cb = cb || utils.createPromiseCallback();
-        console.log(user.Id);
-        var emptyProfile = { "userId": user.id };
+        //console.log(user.Id);
 
-        profileModel.create(emptyProfile, function (err, profileNode) {
+        profileModel.create(profileObject, function (err, profileNode) {
             if (!err && profileNode) {
                 if (profileNode.isNewInstance)
                     console.log("Created new user entry");
@@ -600,6 +599,16 @@ module.exports = function (Peer) {
             }
         );
 
+        PeerModel.remoteMethod(
+            'userCalendar',
+            {
+                accepts: [
+                    { arg: 'id', type: 'string', required: true },
+                ],
+                returns: { arg: 'calendarObject', type: 'object', root: true },
+                http: { path: '/:id/userCalendar', verb: 'get' }
+            }
+        );
         PeerModel.afterRemote('confirm', function (ctx, inst, next) {
             if (ctx.args.redirect !== undefined) {
                 if (!ctx.res) {

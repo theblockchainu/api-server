@@ -1,13 +1,13 @@
 {
-  "name": "collection_has_calendar",
+  "name": "peer_has_transaction",
   "base": "PersistedModel",
   "idInjection": true,
   "options": {
     "validateUpsert": true
   },
   "neo4j": {
-    "sourceModel": "collection",
-    "targetModel": "calendar"
+    "sourceModel": "peer",
+    "targetModel": "transaction"
   },
   "properties": {
     "id": {
@@ -23,14 +23,14 @@
   },
   "validations": [],
   "relations": {
-    "collection": {
+    "peer": {
       "type": "belongsTo",
-      "model": "collection",
+      "model": "peer",
       "foreignKey": "sourceId"
     },
-    "calendar": {
+    "transaction": {
       "type": "belongsTo",
-      "model": "calendar",
+      "model": "transaction",
       "foreignKey": "targetId"
     }
   },

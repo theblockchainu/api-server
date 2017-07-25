@@ -70,11 +70,11 @@ var originsWhitelist = [
     'http://www.peedbuds.com'
 ];
 var corsOptions = {
-    origin: function(origin, callback){
+    origin: function (origin, callback) {
         var isWhitelisted = originsWhitelist.indexOf(origin) !== -1;
         callback(null, isWhitelisted);
     },
-    credentials:true
+    credentials: true
 };
 app.use(cors(corsOptions));
 
@@ -157,9 +157,14 @@ app.post('/signup', function (req, res, next) {
     var User = app.models.peer;
 
     var newUser = {};
+    var profileObject = {};
     newUser.email = req.body.email.toLowerCase();
     newUser.username = req.body.username.trim();
     newUser.password = req.body.password;
+    profileObject.first_name = req.body.firstname;
+    profileObject.last_name = req.body.lastname;
+    profileObject.dob = req.body.dob;
+    profileObject.promoOptIn = req.body.promoOptIn;
 
     var returnTo = req.headers.referer + req.query.returnTo;
 
@@ -258,16 +263,16 @@ app.post('/signup', function (req, res, next) {
     };
 
     var createProfileNode = function (user) {
-        var profile=app.models.profile;
+        var profile = app.models.profile;
         console.log('Creating Profile Node');
-        user.createProfile(profile,user,function(err, user, profileNode){
+        user.createProfile(profile, profileObject, user, function(err, user, profileNode){
             if(!err){
                 console.log('created!');
-            }else{
+            } else {
                 console.log("ERROR");
             }
         });
-    }
+    };
 
     User.findOrCreate({ where: query }, newUser, function (err, user, created) {
 
@@ -292,6 +297,10 @@ app.post('/signup', function (req, res, next) {
             // Update the username field of that account with new username
             else {
 
+                var stripeTransaction = app.models.transaction;
+                stripeTransaction.createCustomer(user, function (err, data) {
+                    console.log("Stripe Customer : " + JSON.stringify(data));
+                });
                 console.log("found existing instance");
                 User.dataSource.connector.execute(
                     "MATCH (p:peer {username: '" + user.username + "'}) SET p.password = '" + hashedPassword + "'",

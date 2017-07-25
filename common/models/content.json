@@ -3,12 +3,20 @@
   "plural": "contents",
   "base": "PersistedModel",
   "idInjection": true,
+  "options": {
+    "validateUpsert": true
+  },
   "mixins": {
     "HasOne": {
       "relations": [
         {
           "model": "schedule",
           "hasManyRelation": "schedules",
+          "autoCreate": true
+        },
+        {
+          "model": "location",
+          "hasManyRelation": "locations",
           "autoCreate": true
         }
       ]
@@ -18,9 +26,6 @@
         "comments"
       ]
     }
-  },
-  "options": {
-    "validateUpsert": true
   },
   "properties": {
     "id": {
@@ -38,27 +43,25 @@
       "type": "string"
     },
     "supplementUrls": {
-      "type": ["string"]
-    },
-    "addressString": {
-      "type": "string"
-    },
-    "addressLat": {
-      "type": "string"
-    },
-    "addressLng": {
-      "type": "string"
+      "type": [
+        "string"
+      ]
     },
     "requireRSVP": {
       "type": "boolean"
     },
     "itemsProvided": {
-      "type": ["string"]
+      "type": [
+        "string"
+      ]
     },
     "notes": {
       "type": "string"
     },
     "imageUrl": {
+      "type": "string"
+    },
+    "prerequisites": {
       "type": "string"
     },
     "created": {
@@ -89,6 +92,13 @@
       "model": "comment",
       "foreignKey": "sourceId",
       "through": "content_has_comment",
+      "keyThrough": "targetId"
+    },
+    "locations": {
+      "type": "hasMany",
+      "model": "location",
+      "foreignKey": "sourceId",
+      "through": "content_has_location",
       "keyThrough": "targetId"
     }
   },
