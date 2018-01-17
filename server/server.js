@@ -10,7 +10,10 @@ var g = require('../node_modules/loopback/lib/globalize');
 var cors = require('cors');
 var bcrypt;
 var MAX_PASSWORD_LENGTH = 72;
-
+var unirest = require('unirest');
+var https = require('https');
+var http = require('http');
+var sslConfig = require('./ssl-config');
 
 try {
     // Try the native module first
@@ -67,15 +70,18 @@ app.set('view engine', 'jade');
 var originsWhitelist = [
     'null',
     'localhost:9090',      //frontend url for development
-    'http://www.peedbuds.com'
+    'localhost:8080',      //frontend url for development
+    'https://www.peedbuds.com',
+    'https://www.dev.peedbuds.com'
 ];
 var corsOptions = {
-    origin: function(origin, callback){
+    origin: function (origin, callback) {
         var isWhitelisted = originsWhitelist.indexOf(origin) !== -1;
         callback(null, isWhitelisted);
     },
-    credentials:true
+    credentials: true
 };
+
 app.use(cors(corsOptions));
 
 
@@ -101,7 +107,7 @@ app.middleware('auth', loopback.token({
 app.middleware('session:before', cookieParser(app.get('cookieSecret')));
 
 app.middleware('session', session({
-    secret: 'kitty',
+    secret: app.get('cookieParser'),
     saveUninitialized: true,
     resave: true,
 }));
@@ -153,16 +159,25 @@ app.get('/signup', function (req, res, next) {
     });
 });
 
+app.get('/socket', function (req, res, next) {
+    res.render('pages/sockettest');
+});
+
 app.post('/signup', function (req, res, next) {
     var User = app.models.peer;
 
     var newUser = {};
+    var profileObject = {};
+    var rememberMe = req.body.rememberMe;
     newUser.email = req.body.email.toLowerCase();
-    newUser.username = req.body.username.trim();
     newUser.password = req.body.password;
-
-    var returnTo = req.headers.referer + req.query.returnTo;
-
+    profileObject.first_name = req.body.first_name;
+    profileObject.last_name = req.body.last_name;
+    profileObject.dobMonth = req.body.dobMonth;
+    profileObject.dobDay = req.body.dobDay;
+    profileObject.dobYear = req.body.dobYear;
+    profileObject.promoOptIn = req.body.promoOptIn;
+    var returnTo = req.headers.origin + '/' + req.query.returnTo;
     var hashedPassword = '';
     var query;
     if (newUser.email && newUser.username) {
@@ -218,11 +233,13 @@ app.post('/signup', function (req, res, next) {
 
     var loopbackLogin = function (user) {
         console.log("inside loopbackLogin");
-        User.login({ username: newUser.username, password: newUser.password }, function (err, accessToken) {
+        User.login({ email: newUser.email, password: newUser.password }, function (err, accessToken) {
             if (err) {
                 console.log("User model login error: " + err);
-                req.flash('error', err);
-                return res.redirect('back');
+                return res.json({
+                    'status': 'failed',
+                    'reason': 'Err: ' + err
+                });
             }
             if (accessToken) {
                 console.log("Access token: " + JSON.stringify(accessToken));
@@ -232,16 +249,40 @@ app.post('/signup', function (req, res, next) {
                 // be invoked to log in the newly registered user.
                 req.login(user, function (err) {
                     if (err) {
-                        req.flash('error', err.message);
-                        return res.redirect('back');
+                        return res.json({
+                            'status': 'failed',
+                            'reason': 'Err: ' + err
+                        });
                     }
                     res.cookie('access_token', accessToken[0].token.properties.id, {
                         signed: req.signedCookies ? true : false,
-                        maxAge: 1000 * accessToken[0].token.properties.ttl,
+                        maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl,
                     });
+                    if (user.accountVerified !== undefined) {
+                        res.cookie('accountApproved', user.accountVerified.toString(), {
+                            signed: req.signedCookies ? true : false,
+                            maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl,
+                        });
+                    }
+                    if (user.currency !== undefined) {
+                        res.cookie('currency', user.currency.toString(),
+                            {
+                                signed: req.signedCookies ? true : false,
+                                // maxAge is in ms
+                                maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl
+                            });
+                    }
+                    if (user.timezone !== undefined) {
+                        res.cookie('timezone', user.timezone.toString(),
+                            {
+                                signed: req.signedCookies ? true : false,
+                                // maxAge is in ms
+                                maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl
+                            });
+                    }
                     res.cookie('userId', user.id.toString(), {
                         signed: req.signedCookies ? true : false,
-                        maxAge: 1000 * accessToken[0].token.properties.ttl,
+                        maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl,
                     });
                     return res.redirect(returnTo);
                     /*return res.json({
@@ -251,63 +292,110 @@ app.post('/signup', function (req, res, next) {
                 });
             } else {
                 console.log("no access token");
-                req.flash('error', 'Could not create access token');
-                return res.redirect('back');
+                return res.json({
+                    'status': 'failed',
+                    'reason': 'Err: Could not create access token'
+                });
             }
         });
     };
 
     var createProfileNode = function (user) {
-        var profile=app.models.profile;
+        var profile = app.models.profile;
         console.log('Creating Profile Node');
-        user.createProfile(profile,user,function(err, user, profileNode){
-            if(!err){
-                console.log('created!');
-            }else{
-                console.log("ERROR");
+        user.updateProfileNode(profile, profileObject, user, function (err, user, profileNode) {
+            if (!err) {
+                console.log(user);
+                user.currency = profileNode.currency;
+                user.timezone = profileNode.timezone;
+            } else {
+                console.log("ERROR CREATING PROFILE");
             }
         });
-    }
+    };
 
-    User.findOrCreate({ where: query }, newUser, function (err, user, created) {
 
+    console.log('trying to find user with query: ' + JSON.stringify(query));
+    User.findOne({ where: query }, function (err, existingUserInstance) {
         if (err) {
-            console.log("Error is: " + err);
-            req.flash('error', err.message);
-            return res.redirect('back');
-        } else {
-            console.log("User is: " + JSON.stringify(user));
-
-            setPassword(newUser.password);
-
-
-
-            if (created) {
-                console.log("created new instance");
-                createProfileNode(user);
-                loopbackLogin(user);
+            return res.json({
+                'status': 'failed',
+                'reason': 'Err: ' + err
+            });
+        }
+        else {
+            if (existingUserInstance !== null) {
+                console.log("found existing USER");
+                return res.json({
+                    'status': 'failed',
+                    'reason': 'User email already exists. Try logging instead.'
+                });
             }
-            // Found an existing account with this email ID and username
-            // Update the password field of that account with new password
-            // Update the username field of that account with new username
             else {
+                User.create(newUser, function (err, user) {
 
-                console.log("found existing instance");
-                User.dataSource.connector.execute(
-                    "MATCH (p:peer {username: '" + user.username + "'}) SET p.password = '" + hashedPassword + "'",
-                    function (err, results) {
-                        if (!err) {
-                            createProfileNode(user);
-                            loopbackLogin(user);
-                        }
-                        else {
+                    if (err) {
+                        return res.json({
+                            'status': 'failed',
+                            'reason': 'Err: ' + err
+                        });
+                    } else {
+                        console.log("User is: " + JSON.stringify(user));
 
-                        }
+                        setPassword(newUser.password);
+
+                        var stripeTransaction = app.models.transaction;
+                        stripeTransaction.createCustomer(user, function (err, data) {
+                            console.log("Stripe Customer : " + JSON.stringify(data));
+                        });
+                        console.log("NEW USER ACCOUNT CREATED");
+                        User.dataSource.connector.execute(
+                            "MATCH (p:peer {email: '" + user.email + "'}) SET p.password = '" + hashedPassword + "'",
+                            function (err, results) {
+                                if (!err) {
+                                    // Send welcome email to user
+                                    var message = { username: profileObject.first_name};
+                                    var renderer = loopback.template(path.resolve(__dirname, 'views/welcomeSignupStudent.ejs'));
+                                    var html_body = renderer(message);
+                                    loopback.Email.send({
+                                        to: user.email,
+                                        from: 'Peerbuds <noreply@mx.peerbuds.com>',
+                                        subject: 'Welcome to peerbuds',
+                                        html: html_body
+                                    })
+                                        .then(function (response) {
+                                            console.log('email sent! - ' + response);
+                                        })
+                                        .catch(function (err) {
+                                            console.log('email error! - ' + err);
+                                        });
+                                    createProfileNode(user);
+                                    loopbackLogin(user);
+                                }
+                                else {
+
+                                }
+                            }
+                        );
                     }
-                );
+                });
             }
         }
     });
+});
+
+app.post('/convertCurrency', function(req, res, next) {
+    var access_key = app.get('currencyLayerKey');
+    console.log(access_key);
+    unirest.get('http://apilayer.net/api/convert')
+        .query('access_key=' + access_key)
+        .query('from=' + req.body.from)
+        .query('to=' + req.body.to)
+        .query('amount=' + req.body.amount)
+        .end(function (response) {
+            console.log(response.body);
+            res.json(response.body);
+        });
 });
 
 app.get('/login', function (req, res, next) {
@@ -332,52 +420,36 @@ app.get('/auth/logout', function (req, res, next) {
     );
 });
 
-app.start = function () {
+app.start = function (httpOnly) {
+    if (httpOnly === undefined) {
+        httpOnly = process.env.HTTP;
+    }
+    var server = null;
+    if (!httpOnly) {
+        var options = {
+            key: sslConfig.privateKey,
+            cert: sslConfig.certificate,
+        };
+        server = https.createServer(options, app);
+    } else {
+        server = http.createServer(app);
+    }
     // start the web server
-    return app.listen(function () {
-        app.emit('started');
-        var baseUrl = app.get('url').replace(/\/$/, '');
+    server.listen(app.get('port'), function () {
+        var baseUrl = (httpOnly? 'http://' : 'https://') + app.get('host') + ':' + app.get('port');
+        app.emit('started', baseUrl);
         console.log('Web server listening at: %s', baseUrl);
         if (app.get('loopback-component-explorer')) {
             var explorerPath = app.get('loopback-component-explorer').mountPath;
             console.log('Browse your REST API at %s%s', baseUrl, explorerPath);
         }
     });
+    return server;
 };
 
 // start the server if `$ node server.js`
 if (require.main === module) {
     app.io = require('socket.io')(app.start());
 
-    require('socketio-auth')(app.io, {
-        authenticate: function (socket, value, callback) {
-
-            var AccessToken = app.models.UserToken;
-            //get credentials sent by the client
-            var token = AccessToken.find({
-                where:{
-                    and: [{ userId: value.userId }, { access_token: value.access_token }]
-                }
-            }, function(err, tokenDetail){
-                if (err) throw err;
-                if(tokenDetail.length){
-                    callback(null, true);
-                } else {
-                    callback(null, false);
-                }
-            }); //find function..
-        } //authenticate function..
-    });
-
-    app.io.on('connection', function(socket) {
-        console.log('a user connected');
-
-        socket.on('subscribe', function(room) {
-            console.log('joining room', room);
-            socket.join(room);
-        });
-        socket.on('disconnect', function(){
-           console.log('user disconnected');
-        });
-    });
+    app.socketService = require('./socket-events')(app.io);
 }

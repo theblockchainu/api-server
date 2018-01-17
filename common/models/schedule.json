@@ -5,7 +5,19 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
+  },
   "properties": {
+    "id": {
+      "type": "string",
+      "id": true
+    },
     "startDay": {
       "type": "number"
     },
@@ -13,10 +25,10 @@
       "type": "number"
     },
     "startTime": {
-      "type": "string"
+      "type": "date"
     },
     "endTime": {
-      "type": "string"
+      "type": "date"
     }
   },
   "validations": [],

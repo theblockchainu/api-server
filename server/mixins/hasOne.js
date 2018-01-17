@@ -4,34 +4,37 @@ module.exports = function (Model, options) {
         var modelName = element.model;
         var relation = element.hasManyRelation;
 
-        Model.observe('after save', function (ctx, next) {
+        Model.observe('after save', function (ctx, next, cb) {
             var data = {};
-            if (element.autoCreate) {
+            if (element.autoCreate && !ctx.instance.disableHasOneCreate) {
                 var currentId = ctx.instance.id;
                 Model.findById(currentId, function (err, modelInstance) {
                     var relatedTo = modelInstance[relation];
                     relatedTo.count(function (err, count) {
                         if (err) {
-                            cb(err);
+                            console.log(err);
+                            next(err);
                         } else {
-                            if (count == 0) {
+                            if (count === 0) {
                                 relatedTo.create(data, function (err, createdInstance) {
                                     if (err) {
-                                        cb(err)
+                                        console.log(err);
+                                        next(err);
                                     } else {
                                         console.log(createdInstance);
+                                        next();
                                     }
                                 });
                             } else {
-                                cb(null, "Profile Already Exists");
+                                console.log("Profile Already Exists");
+                                next();
                             }
                         }
                     });
                 });
-            }
-            next();
+            } else
+                next();
         });
-
         Model['postOne_' + relation] = function (id, data, cb) {
             Model.findById(id, function (err, modelInstance) {
                 if (err) {
@@ -43,7 +46,7 @@ module.exports = function (Model, options) {
                             if (err) {
                                 cb(err);
                             } else {
-                                if (count == 0) {
+                                if (count === 0) {
                                     relatedTo.create(data, function (err, createdInstance) {
                                         if (err) {
                                             cb(err)
@@ -52,12 +55,14 @@ module.exports = function (Model, options) {
                                         }
                                     });
                                 } else {
-                                    cb(null, "Profile Already Exists");
+                                    console.log("Profile Already Exists");
+                                    cb();
                                 }
                             }
                         });
                     } else {
-                        cb(null, "Not Found");
+                        console.log("Not Found");
+                        cb();
                     }
                 }
             });
@@ -69,25 +74,33 @@ module.exports = function (Model, options) {
                     cb(err);
                 } else {
                     if (modelInstance) {
+                        console.log(modelInstance);
                         var relatedTo = modelInstance[relation];
                         relatedTo(function (err, instances) {
                             if (err) {
                                 cb(err);
                             } else {
-                                var objId = instances[0].id;
-                                var originalModel = Model.app.models[modelName];
-                                originalModel.upsertWithWhere({ "id": objId }, data, function (err, updatedInstance) {
-                                    if (err) {
-                                        cb(err)
-                                    }
-                                    else {
-                                        cb(null, updatedInstance)
-                                    }
-                                });
+                                if (instances[0]) {
+                                    var objId = instances[0].id;
+                                    var originalModel = Model.app.models[modelName];
+                                    originalModel.upsertWithWhere({ "id": objId }, data, function (err, updatedInstance) {
+                                        if (err) {
+                                            cb(err)
+                                        }
+                                        else {
+                                            cb(null, updatedInstance)
+                                        }
+                                    });
+                                } else {
+                                    console.log("not Added");
+                                    cb();
+                                }
+
                             }
                         });
                     } else {
-                        cb(null, "Not Found");
+                        console.log("Not Found");
+                        cb();
                     }
 
                 }
@@ -107,7 +120,8 @@ module.exports = function (Model, options) {
                             cb(null, instanceObj);
                         });
                     } else {
-                        cb(null, "Not Found");
+                        console.log("Not Found");
+                        cb();
                     }
                 }
             });
@@ -137,7 +151,8 @@ module.exports = function (Model, options) {
                             }
                         });
                     } else {
-                        cb(null, "Not Found");
+                        console.log("Not Found");
+                        cb();
                     }
 
                 }

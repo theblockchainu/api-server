@@ -9,20 +9,25 @@
   "mixins": {
     "AddPeerRelation": {
       "relationName": [
-        "replies"
+        "replies",
+        "upvotes"
       ]
-    }
+    },
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
   },
   "properties": {
     "description": {
       "type": "string",
       "required": true
     },
-    "created": {
-      "type": "date"
-    },
-    "modified": {
-      "type": "date"
+    "isAccouncement": {
+      "type": "boolean",
+      "default": false
     }
   },
   "validations": [],
@@ -53,6 +58,41 @@
       "model": "content",
       "foreignKey": "targetId",
       "through": "content_has_comment",
+      "keyThrough": "sourceId"
+    },
+    "submissions": {
+      "type": "hasMany",
+      "model": "submission",
+      "foreignKey": "targetId",
+      "through": "submission_has_comment",
+      "keyThrough": "sourceId"
+    },
+    "upvotes": {
+      "type": "hasMany",
+      "model": "upvote",
+      "foreignKey": "sourceId",
+      "through": "comment_has_upvote",
+      "keyThrough": "targetId"
+    },
+    "communities": {
+      "type": "hasMany",
+      "model": "community",
+      "foreignKey": "targetId",
+      "through": "community_has_comment",
+      "keyThrough": "sourceId"
+    },
+    "questions": {
+      "type": "hasMany",
+      "model": "question",
+      "foreignKey": "targetId",
+      "through": "question_has_comment",
+      "keyThrough": "sourceId"
+    },
+    "answers": {
+      "type": "hasMany",
+      "model": "answer",
+      "foreignKey": "targetId",
+      "through": "answer_has_comment",
       "keyThrough": "sourceId"
     }
   },

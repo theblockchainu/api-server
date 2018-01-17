@@ -1,0 +1,38 @@
+{
+  "name": "notification_has_collection",
+  "base": "PersistedModel",
+  "idInjection": true,
+  "options": {
+    "validateUpsert": true
+  },
+  "neo4j": {
+    "sourceModel": "notification",
+    "targetModel": "collection"
+  },
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "sourceId": {
+      "type": "string"
+    },
+    "targetId": {
+      "type": "string"
+    }
+  },
+  "validations": [],
+  "relations": {
+    "notification": {
+      "type": "belongsTo",
+      "model": "notification",
+      "foreignKey": "sourceId"
+    },
+    "collection": {
+      "type": "belongsTo",
+      "model": "collection",
+      "foreignKey": "targetId"
+    }
+  },
+  "acls": [],
+  "methods": {}
+}

@@ -5,12 +5,18 @@
   "options": {
     "validateUpsert": true
   },
-  "properties": {
-    "created": {
-      "type": "date"
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
     },
-    "modified": {
-      "type": "date"
+    "GlobalUtils": {}
+  },
+  "properties": {
+    "id": {
+      "type": "string",
+      "id": true
     }
   },
   "validations": [],
@@ -21,6 +27,20 @@
       "foreignKey": "sourceId",
       "through": "downvote_has_voter",
       "keyThrough": "targetId"
+    },
+    "questions": {
+      "type": "hasMany",
+      "model": "question",
+      "foreignKey": "targetId",
+      "through": "question_has_downvote",
+      "keyThrough": "sourceId"
+    },
+    "answers": {
+      "type": "hasMany",
+      "model": "answer",
+      "foreignKey": "targetId",
+      "through": "answer_has_downvote",
+      "keyThrough": "sourceId"
     }
   },
   "acls": [],

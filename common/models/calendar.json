@@ -5,16 +5,36 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
+  },
   "properties": {
     "startDate": {
       "type": "date"
     },
     "endDate": {
       "type": "date"
+    },
+    "status": {
+      "type": "string",
+      "default": "active"
     }
   },
   "validations": [],
-  "relations": {},
+  "relations": {
+    "collection": {
+      "type": "hasMany",
+      "model": "collection",
+      "foreignKey": "targetId",
+      "through": "collection_has_calendar",
+      "keyThrough": "sourceId"
+    }
+  },
   "acls": [],
   "methods": {}
 }

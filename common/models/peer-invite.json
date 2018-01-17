@@ -5,6 +5,14 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
+  },
   "properties": {
     "id": {
       "type": "string",
@@ -21,16 +29,18 @@
     },
     "status": {
       "type": "string"
-    },
-    "created": {
-      "type": "date"
-    },
-    "modified": {
-      "type": "date"
     }
   },
   "validations": [],
-  "relations": {},
+  "relations": {
+    "communities": {
+      "type": "hasMany",
+      "model": "community",
+      "foreignKey": "targetId",
+      "through": "community_has_invite",
+      "keyThrough": "sourceId"
+    }
+  },
   "acls": [],
   "methods": {}
 }

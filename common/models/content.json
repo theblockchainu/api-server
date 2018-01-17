@@ -3,6 +3,9 @@
   "plural": "contents",
   "base": "PersistedModel",
   "idInjection": true,
+  "options": {
+    "validateUpsert": true
+  },
   "mixins": {
     "HasOne": {
       "relations": [
@@ -10,17 +13,36 @@
           "model": "schedule",
           "hasManyRelation": "schedules",
           "autoCreate": true
+        },
+        {
+          "model": "location",
+          "hasManyRelation": "locations",
+          "autoCreate": true
         }
       ]
     },
     "AddPeerRelation": {
       "relationName": [
-        "comments"
+        "comments",
+        "submissions",
+        "views",
+        "rsvps"
+      ]
+    },
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {},
+    "PatchMany": {
+      "relations": [
+        {
+          "model": "availability",
+          "hasManyRelation": "availabilities"
+        }
       ]
     }
-  },
-  "options": {
-    "validateUpsert": true
   },
   "properties": {
     "id": {
@@ -38,22 +60,17 @@
       "type": "string"
     },
     "supplementUrls": {
-      "type": ["string"]
-    },
-    "addressString": {
-      "type": "string"
-    },
-    "addressLat": {
-      "type": "string"
-    },
-    "addressLng": {
-      "type": "string"
+      "type": [
+        "string"
+      ]
     },
     "requireRSVP": {
       "type": "boolean"
     },
     "itemsProvided": {
-      "type": ["string"]
+      "type": [
+        "string"
+      ]
     },
     "notes": {
       "type": "string"
@@ -61,11 +78,11 @@
     "imageUrl": {
       "type": "string"
     },
-    "created": {
-      "type": "date"
+    "prerequisites": {
+      "type": "string"
     },
-    "modified": {
-      "type": "date"
+    "sessionIsApproved": {
+      "type": "boolean"
     }
   },
   "validations": [],
@@ -90,6 +107,48 @@
       "foreignKey": "sourceId",
       "through": "content_has_comment",
       "keyThrough": "targetId"
+    },
+    "locations": {
+      "type": "hasMany",
+      "model": "location",
+      "foreignKey": "sourceId",
+      "through": "content_has_location",
+      "keyThrough": "targetId"
+    },
+    "submissions": {
+      "type": "hasMany",
+      "model": "submission",
+      "foreignKey": "sourceId",
+      "through": "content_has_submission",
+      "keyThrough": "targetId"
+    },
+    "views": {
+      "type": "hasMany",
+      "model": "view",
+      "foreignKey": "sourceId",
+      "through": "content_has_view",
+      "keyThrough": "targetId"
+    },
+    "rsvps": {
+      "type": "hasMany",
+      "model": "rsvp",
+      "foreignKey": "sourceId",
+      "through": "content_has_rsvp",
+      "keyThrough": "targetId"
+    },
+    "availabilities": {
+      "type": "hasMany",
+      "model": "availability",
+      "foreignKey": "sourceId",
+      "through": "content_has_availability",
+      "keyThrough": "targetId"
+    },
+    "peers": {
+      "type": "hasMany",
+      "model": "peer",
+      "foreignKey": "targetId",
+      "through": "peer_has_content",
+      "keyThrough": "sourceId"
     }
   },
   "acls": [],

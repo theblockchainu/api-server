@@ -5,26 +5,16 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
+  },
   "properties": {
-    "part2B": {
-      "type": "string"
-    },
-    "part2T": {
-      "type": "string"
-    },
-    "part1": {
-      "type": "string"
-    },
-    "scope": {
-      "type": "string"
-    },
-    "type": {
-      "type": "string"
-    },
     "name": {
-      "type": "string"
-    },
-    "comment": {
       "type": "string"
     },
     "code": {

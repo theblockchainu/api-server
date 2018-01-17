@@ -5,12 +5,18 @@
   "options": {
     "validateUpsert": true
   },
-  "properties": {
-    "created": {
-      "type": "date"
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
     },
-    "modified": {
-      "type": "date"
+    "GlobalUtils": {}
+  },
+  "properties": {
+    "id": {
+      "type": "string",
+      "id": true
     }
   },
   "validations": [],
@@ -21,6 +27,41 @@
       "foreignKey": "sourceId",
       "through": "upvote_has_voter",
       "keyThrough": "targetId"
+    },
+    "comments": {
+      "type": "hasMany",
+      "model": "comment",
+      "foreignKey": "targetId",
+      "through": "comment_has_upvote",
+      "keyThrough": "sourceId"
+    },
+    "replies": {
+      "type": "hasMany",
+      "model": "reply",
+      "foreignKey": "targetId",
+      "through": "reply_has_upvote",
+      "keyThrough": "sourceId"
+    },
+    "submissions": {
+      "type": "hasMany",
+      "model": "submission",
+      "foreignKey": "targetId",
+      "through": "submission_has_upvote",
+      "keyThrough": "sourceId"
+    },
+    "questions": {
+      "type": "hasMany",
+      "model": "question",
+      "foreignKey": "targetId",
+      "through": "question_has_upvote",
+      "keyThrough": "sourceId"
+    },
+    "answers": {
+      "type": "hasMany",
+      "model": "answer",
+      "foreignKey": "targetId",
+      "through": "answer_has_upvote",
+      "keyThrough": "sourceId"
     }
   },
   "acls": [],

@@ -17,6 +17,13 @@ var uuid = require("uuid");
 var MAX_PASSWORD_LENGTH = 72;
 var debug = require('debug')('loopback:peer');
 var moment = require('moment');
+var momenttz = require('moment-timezone');
+var passcode = require("passcode");
+var twilio = require('twilio');
+var app = require('../../server/server');
+var twilioSid = app.get('twilioSID');
+var twilioToken = app.get('twilioToken');
+var twilioPhone = app.get('twilioPhone');
 
 try {
     // Try the native module first
@@ -104,10 +111,15 @@ module.exports = function (Peer) {
                     else if (isMatch) {
                         if (self.settings.emailVerificationRequired && !peer.emailVerified) {
                             // Fail to log in if email verification is not done yet
-                            err = new Error(g.f('login failed as the email has not been verified'));
+                            /*err = new Error(g.f('login failed as the email has not been verified'));
                             err.statusCode = 401;
                             err.code = 'LOGIN_FAILED_EMAIL_NOT_VERIFIED';
-                            fn(err);
+                            fn(err);*/
+                            if (peer.createAccessToken.length === 2) {
+                                peer.createAccessToken(peer, credentials.ttl, tokenHandler);
+                            } else {
+                                peer.createAccessToken(peer, credentials.ttl, credentials, tokenHandler);
+                            }
                         } else {
                             if (peer.createAccessToken.length === 2) {
                                 peer.createAccessToken(peer, credentials.ttl, tokenHandler);
@@ -182,12 +194,13 @@ module.exports = function (Peer) {
      * @param uid
      * @param {String} token The validation token
      * @param {String} redirect URL to redirect the user to once confirmed
+     * @param req
+     * @param res
      * @param fn
      * @callback {Function} callback
      * @promise
      */
-    Peer.confirm = function (uid, token, redirect, fn) {
-        fn = fn || utils.createPromiseCallback();
+    Peer.confirm = function (uid, token, redirect, req, res, fn) {
         this.findById(uid, function (err, user) {
             if (err) {
                 fn(err);
@@ -199,7 +212,15 @@ module.exports = function (Peer) {
                         if (err) {
                             fn(err);
                         } else {
-                            fn();
+                            if (redirect !== undefined) {
+                                if (!res) {
+                                    fn(new Error(g.f('The transport does not support HTTP redirects.')));
+                                }
+                                fn(null, { result: "success" });
+                            }
+                            else {
+                                fn(new Error(g.f('Redirect is not defined.')));
+                            }
                         }
                     });
                 } else {
@@ -216,9 +237,170 @@ module.exports = function (Peer) {
                 }
             }
         });
+    };
+
+
+    /**
+     * Send verification email to user's Email ID
+     *
+     * @param uid
+     * @param fn
+     * @callback {Function} callback
+     * @promise
+     */
+    Peer.sendVerifyEmail = function (uid, email, fn) {
+        fn = fn || utils.createPromiseCallback();
+        this.findById(uid, function (err, user) {
+            if (err) {
+                fn(err);
+            } else {
+                if (user) {
+                    // Generate new verificationToken
+                    var verificationToken = passcode.hotp({
+                        secret: "0C6&7vvvv",
+                        counter: Date.now()
+                    });
+                    // Send token in email to user.
+                    var message = { otp: verificationToken };
+                    var renderer = loopback.template(path.resolve(__dirname, '../../server/views/verifyEmailAddress.ejs'));
+                    var html_body = renderer(message);
+                    loopback.Email.send({
+                        to: email,
+                        from: 'Peerbuds <noreply@mx.peerbuds.com>',
+                        subject: 'Verify your email with peerbuds',
+                        html: html_body
+                    })
+                        .then(function (response) {
+                            console.log('email sent! - ' + response);
+                        })
+                        .catch(function (err) {
+                            console.log('email error! - ' + err);
+                        });
+                    user.verificationToken = verificationToken;
+                    user.emailVerified = false;
+                    user.save(function (err) {
+                        if (err) {
+                            fn(err);
+                        } else {
+                            fn(null, user);
+                        }
+                    });
+                } else {
+                    err = new Error(g.f('User not found: %s', uid));
+                    err.statusCode = 404;
+                    err.code = 'USER_NOT_FOUND';
+                    fn(err);
+                }
+            }
+        });
         return fn.promise;
     };
 
+    Peer.confirmSmsOTP = function (req, token, fn) {
+
+        var loggedinPeer = Peer.getCookieUserId(req);
+
+        //if user is logged in
+        if (loggedinPeer) {
+            this.findById(loggedinPeer, function (err, user) {
+                if (err) {
+                    fn(err);
+                } else {
+                    if (user && user.phoneVerificationToken === token) {
+                        user.phoneVerificationToken = null;
+                        user.phoneVerified = true;
+                        user.save(function (err) {
+                            if (err) {
+                                fn(err);
+                            } else {
+                                fn(null, user);
+                            }
+                        });
+                    } else {
+                        if (user) {
+                            err = new Error(g.f('Invalid token: %s', token));
+                            err.statusCode = 400;
+                            err.code = 'INVALID_TOKEN';
+                        } else {
+                            err = new Error(g.f('User not found: %s', uid));
+                            err.statusCode = 404;
+                            err.code = 'USER_NOT_FOUND';
+                        }
+                        fn(err);
+                    }
+                }
+            });
+        } else {
+            var err = new Error('Invalid access');
+            err.code = 'INVALID_ACCESS';
+            fn(err);
+        }
+    };
+
+
+    /**
+     * Send verification sms to user's phone
+     *
+     * @param req
+     * @param phone
+     * @param fn
+     * @callback {Function} callback
+     * @promise
+     */
+    Peer.sendVerifySms = function (req, phone, fn) {
+
+        fn = fn || utils.createPromiseCallback();
+        var loggedinPeer = Peer.getCookieUserId(req);
+        var formattedPhone = phone.replace(/[^\d]/g, '');
+        formattedPhone = '+91' + formattedPhone;
+        //if user is logged in
+        if (loggedinPeer) {
+            // Generate new hex token for sms
+            var phoneToken = crypto.randomBytes(Math.ceil(2))
+                .toString('hex') // convert to hexadecimal format
+                .slice(0, 4);   // return required number of characters
+
+            var client = new twilio(twilioSid, twilioToken);
+
+            var message = "Verify your phone with peerbuds using OTP: " + phoneToken;
+
+            client.messages.create({
+                body: message,
+                to: formattedPhone,  // Text this number
+                from: twilioPhone // From a valid Twilio number
+            }, function (err, message) {
+                if (err) {
+                    console.error(err);
+                    fn(err);
+                }
+                else {
+                    console.log(message);
+                    var User = app.models.peer;
+                    User.findById(loggedinPeer, function (err, peerInstance) {
+                        if (err) {
+                            cb(err);
+                        } else {
+                            peerInstance.phoneVerificationToken = phoneToken;
+                            peerInstance.phoneVerified = false;
+                            User.upsert(peerInstance, function (err, modifiedPeerInstance) {
+                                if (err) {
+                                    fn(err);
+                                }
+                                else {
+                                    fn(null, { result: 'OTP SMS sent' });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        } else {
+            var err = new Error('Invalid access');
+            err.code = 'INVALID_ACCESS';
+            fn(err);
+        }
+        return fn.promise;
+    };
 
     /**
      * Create a short lived access token for temporary login. Allows users
@@ -235,110 +417,267 @@ module.exports = function (Peer) {
 
     Peer.resetPassword = function (options, cb) {
         cb = cb || utils.createPromiseCallback();
-        var PeerModel = this;
-        var ttl = PeerModel.settings.resetPasswordTokenTTL || DEFAULT_RESET_PW_TTL;
-        options = options || {};
-        if (typeof options.email !== 'string') {
-            var err = new Error(g.f('Email is required'));
-            err.statusCode = 400;
-            err.code = 'EMAIL_REQUIRED';
-            cb(err);
-            return cb.promise;
-        }
-
-        try {
-            if (options.password) {
-                PeerModel.validatePassword(options.password);
+        if (options.email && options.password && options.verificationToken) {
+            console.log('resetting password ');
+            try {
+                options.password = this.hashPassword(options.password);
+            } catch (err) {
+                cb(err);
             }
-        } catch (err) {
-            return cb(err);
-        }
-        var where = {
-            email: options.email
-        };
-        if (options.realm) {
-            where.realm = options.realm;
-        }
-        PeerModel.findOne({ where: where }, function (err, user) {
-            if (err) {
-                return cb(err);
-            }
-            if (!user) {
-                err = new Error(g.f('Email not found'));
-                err.statusCode = 404;
-                err.code = 'EMAIL_NOT_FOUND';
-                return cb(err);
-            }
-            // create a short lived access token for temp login to change password
-            // TODO(ritch) - eventually this should only allow password change
-            if (PeerModel.settings.emailVerificationRequired && !user.emailVerified) {
-                err = new Error(g.f('Email has not been verified'));
-                err.statusCode = 401;
-                err.code = 'RESET_FAILED_EMAIL_NOT_VERIFIED';
-                return cb(err);
-            }
-
-            user.createAccessToken(ttl, function (err, accessToken) {
-                if (err) {
-                    return cb(err);
+            console.log('Finding Model with email' + options.email);
+            this.findOne({
+                where: {
+                    email: options.email
                 }
-                cb();
-                PeerModel.emit('resetPasswordRequest', {
-                    email: options.email,
-                    accessToken: accessToken,
-                    user: user,
-                    options: options
-                });
-            });
-        });
+            }, (err, user) => {
+                if (user) {
+                    console.log('User Found!');
+                    if (options.verificationToken === user.verificationToken) {
+                        var diff = moment().diff(moment.unix(user.verificationTokenTime), 'minutes');
+                        if (diff > 10) {
+                            err = new Error(g.f('Token Expired'));
+                            err.statusCode = 400;
+                            err.code = 'TOKEN_EXPIRED';
+                            cb(err);
+                        } else {
+                            console.log('Verification Successful');
+                            user.updateAttributes({
+                                "password": options.password,
+                                "verificationToken": '',
+                                "verificationTokenTime": ''
+                            });
+                            cb(null, {
+                                'message': 'Password changed',
+                                'success': true
+                            });
+                        }
+                    } else {
+                        err = new Error(g.f('Invalid Token'));
+                        err.statusCode = 400;
+                        err.code = 'INVALID_TOKEN';
+                        cb(err);
+                    }
 
-        return cb.promise;
+                } else {
+                    err = new Error(g.f('User not found'));
+                    err.statusCode = 404;
+                    err.code = 'EMAIL_NOT_FOUND';
+                    cb(err);
+                }
+            });
+        } else {
+            var err = new Error(g.f('Invalid Data'));
+            err.statusCode = 400;
+            err.code = 'INVALID_DATA';
+            cb(err);
+        }
+
+    };
+
+    Peer.changePassword = function (options, cb) {
+        cb = cb || utils.createPromiseCallback();
+        if (options.userId && options.oldPassword && options.newPassword) {
+            console.log('resetting password ');
+            try {
+                options.newPassword = this.hashPassword(options.newPassword);
+                options.oldPassword = this.hashPassword(options.oldPassword);
+            } catch (err) {
+                cb(err);
+            }
+            console.log('Finding Model with userId' + options.userId);
+            this.findOne({
+                where: {
+                    id: options.userId
+                }
+            }, (err, user) => {
+                if (user) {
+                    console.log('User Found!');
+                    if (options.oldPasword === user.password) {
+                        console.log('Verification Successful');
+                        user.updateAttributes({
+                            "password": options.newPassword,
+                            "verificationToken": '',
+                            "verificationTokenTime": ''
+                        });
+                        cb(null, {
+                            'message': 'Password changed',
+                            'success': true
+                        });
+                    } else {
+                        err = new Error(g.f('Invalid password'));
+                        err.statusCode = 400;
+                        err.code = 'INVALID_PASSWORD';
+                        cb(err);
+                    }
+
+                } else {
+                    err = new Error(g.f('User not found'));
+                    err.statusCode = 404;
+                    err.code = 'USER_NOT_FOUND';
+                    cb(err);
+                }
+            });
+        } else {
+            var err = new Error(g.f('Invalid Data'));
+            err.statusCode = 400;
+            err.code = 'INVALID_DATA';
+            cb(err);
+        }
+
+    };
+
+    Peer.forgotPassword = function (req, email, cb) {
+        cb = cb || utils.createPromiseCallback();
+        this.findOne({ where: { email: email } }, function (err, user) {
+            if (user) {
+                // Generate new verificationToken
+                var verificationToken = passcode.hotp({
+                    secret: "0C6&7vvvv",
+                    counter: Date.now()
+                });
+                user.verificationToken = verificationToken;
+                user.verificationTokenTime = moment().unix();
+                user.save((err, result) => {
+                    if (err) {
+                        cb(err);
+                    } else {
+                        // Send token in email to user.
+                        var resetLink = req.headers.origin + '/reset?email=' + email + '&code=' + verificationToken ;
+                        var message = { resetLink: resetLink };
+                        var renderer = loopback.template(path.resolve(__dirname, '../../server/views/forgotPasswordEmail.ejs'));
+                        var html_body = renderer(message);
+                        loopback.Email.send({
+                            to: email,
+                            from: 'Peerbuds <noreply@mx.peerbuds.com>',
+                            subject: 'Peerbuds - Account recovery',
+                            html: html_body
+                        }).then(function (response) {
+                            cb(null, { email: email, sent: true });
+                        }).catch(function (err) {
+                            cb(err);
+                        });
+                    }
+                });
+            } else {
+                err = new Error(g.f('User not found'));
+                err.statusCode = 404;
+                err.code = 'USER_NOT_FOUND';
+                cb(err);
+            }
+
+        });
     };
 
     Peer.userCalendar = function (id, cb) {
         var Calendar = Peer.app.models.Calendar;
         var Schedule = Peer.app.models.Schedule;
         var userCalendarData = [];
-        Peer.findById(id, {"include": {collections: [{contents: "schedules"},"calendars"]}}, (err, peerInstance) => {
+        Peer.findById(id, { "include": [{ collections: [{ contents: "schedules" }, "calendars"] }, { ownedCollections: [{ contents: "schedules" }, "calendars"] }] }, (err, peerInstance) => {
             if (err) {
                 cb(err);
             } else {
                 peerInstance = peerInstance.toJSON();
                 var collections = peerInstance.collections;
+                var ownedCollections = peerInstance.ownedCollections;
+                var collectionDate;
                 collections.forEach((collectionItem) => {
-                    var collectionDate = collectionItem.calendars[0];
-                    if (collectionDate.startDate && collectionDate.endDate) {
-                        var contents = collectionItem.contents;
-                        contents.forEach((contentItem) => {
-                            var schedules = contentItem.schedules;
-                            var scheduleData = schedules[0];
-                            console.log(scheduleData);
-                            if (scheduleData.startDay !== null && scheduleData.endDay !== null) {
-                                var startDate = moment(collectionDate.startDate).add(scheduleData.startDay, 'days');
-                                var endDate = moment(collectionDate.startDate).add(scheduleData.endDay, 'days');
-                                if (scheduleData.startTime && scheduleData.endTime) {
-                                    startDate.hours(scheduleData.startTime.split(':')[0]);
-                                    startDate.minutes(scheduleData.startTime.split(':')[1]);
-                                    startDate.seconds(scheduleData.startTime.split(':')[2]);
-                                    endDate.hours(scheduleData.endTime.split(':')[0]);
-                                    endDate.minutes(scheduleData.endTime.split(':')[1]);
-                                    endDate.seconds(scheduleData.endTime.split(':')[2]);
-                                    var calendarData = {
-                                        "startDate": startDate,
-                                        "endDate": endDate
-                                    };
-                                    console.log(calendarData);
-                                    userCalendarData.push(calendarData);
-                                } else {
-                                    console.log("Time Unavailable !");
-                                }
+                    collectionItem.calendars.forEach((collectionDate) => {
+                        if (collectionDate.startDate && collectionDate.endDate) {
+                            var contents = collectionItem.contents;
+                            if (contents) {
+                                contents.forEach((contentItem) => {
+                                    var schedules = contentItem.schedules;
+                                    var scheduleData = schedules[0];
+                                    if (scheduleData.startDay !== null && scheduleData.endDay !== null) {
+                                        var startDate = moment(collectionDate.startDate).add(scheduleData.startDay, 'days');
+                                        var endDate = moment(startDate).add(scheduleData.endDay, 'days');
+                                        if (scheduleData.startTime && scheduleData.endTime) {
+                                            startDate.hours(scheduleData.startTime.split('T')[1].split(':')[0]);
+                                            startDate.minutes(scheduleData.startTime.split('T')[1].split(':')[1]);
+                                            startDate.seconds('00');
+                                            endDate.hours(scheduleData.endTime.split('T')[1].split(':')[0]);
+                                            endDate.minutes(scheduleData.endTime.split('T')[1].split(':')[1]);
+                                            endDate.seconds('00');
+                                            var calendarData = {
+                                                "collectionType": collectionItem.type,
+                                                "collectionName": collectionItem.title,
+                                                "collectionId": collectionItem.id,
+                                                "contentType": contentItem.type,
+                                                "contentName": contentItem.title,
+                                                "contentId": contentItem.id,
+                                                "startDateTime": startDate,
+                                                "endDateTime": endDate
+                                            };
+                                            userCalendarData.push(calendarData);
+                                        } else {
+                                            console.log("Time Unavailable !");
+                                        }
+                                    } else {
+                                        console.log("Schedule Days Unavailable");
+                                    }
+                                });
                             } else {
-                                console.log("Schedule Days Unavailable");
+                                console.log('No Contents');
+                            }
+                        } else {
+                            console.log("Collection Calendar Not Set");
+                        }
+                    });
+
+                });
+
+                ownedCollections.forEach((collectionItem) => {
+                    if (collectionItem.calendars !== undefined) {
+                        collectionItem.calendars.forEach((collectionDate) => {
+                            if (collectionDate.startDate && collectionDate.endDate) {
+                                var contents = collectionItem.contents;
+                                if (contents) {
+                                    contents.forEach((contentItem) => {
+                                        var schedules = contentItem.schedules;
+                                        var scheduleData = schedules[0];
+                                        if (scheduleData.startDay !== null && scheduleData.endDay !== null) {
+                                            var startDate = momenttz.tz(collectionDate.startDate, 'UTC');
+                                            startDate = startDate.add(scheduleData.startDay, 'days');
+                                            var endDate = momenttz.tz(startDate, 'UTC');
+                                            endDate = endDate.add(scheduleData.endDay, 'days');
+                                            if (scheduleData.startTime && scheduleData.endTime) {
+                                                startDate.hours(scheduleData.startTime.split('T')[1].split(':')[0]);
+                                                startDate.minutes(scheduleData.startTime.split('T')[1].split(':')[1]);
+                                                startDate.seconds('00');
+                                                endDate.hours(scheduleData.endTime.split('T')[1].split(':')[0]);
+                                                endDate.minutes(scheduleData.endTime.split('T')[1].split(':')[1]);
+                                                endDate.seconds('00');
+                                                var calendarData = {
+                                                    "collectionType": collectionItem.type,
+                                                    "collectionName": collectionItem.title,
+                                                    "collectionId": collectionItem.id,
+                                                    "contentType": contentItem.type,
+                                                    "contentName": contentItem.title,
+                                                    "contentId": contentItem.id,
+                                                    "startDateTime": startDate,
+                                                    "endDateTime": endDate
+                                                };
+                                                userCalendarData.push(calendarData);
+                                            } else {
+                                                console.log("Time Unavailable !");
+                                            }
+                                        } else {
+                                            console.log("Schedule Days Unavailable");
+                                        }
+                                    });
+                                } else {
+                                    console.log('Contents Not Found');
+                                }
+
+
+                            } else {
+                                console.log("Collection Calendar Not Set");
                             }
                         });
 
-                    } else {
-                        console.log("Collection Calendar Not Set");
+                    }
+                    else {
+                        console.log("This collection does not have any calendar.");
                     }
                 });
 
@@ -347,20 +686,140 @@ module.exports = function (Peer) {
         });
     };
 
+    Peer.approve = function (id, req, cb) {
+        // Find the collection by given ID
+        Peer.findById(id, function (err, peerInstance) {
+            if (!err && peerInstance !== null) {
+                var userId = peerInstance.toJSON().id;
+                peerInstance.accountVerified = true;
+                Peer.upsertWithWhere({ id: peerInstance.id }, peerInstance, function (err, newpeerInstance) {
+                    if (err) {
+                        console.log(err);
+                        err = new Error(g.f('Error updating Peer.'));
+                        err.statusCode = 400;
+                        err.code = 'DB_ERROR';
+                        cb(err);
+                    }
+                    else {
+                        var message = {};
+                        var subject = 'Account approved';
 
-    /*Peer.observe('before delete', function(ctx, next) {
-        var AccessToken = ctx.Model.relations.accessTokens.modelTo;
-        var pkName = ctx.Model.definition.idName() || 'id';
-        ctx.Model.find({where: ctx.where, fields: [pkName]}, function(err, list) {
-            if (err) return next(err);
+                        var renderer = loopback.template(path.resolve(__dirname, '../../server/views/accountApproved.ejs'));
+                        var html_body = renderer(message);
 
-            var ids = list.map(function(u) { return u[pkName]; });
-            ctx.where = {};
-            ctx.where[pkName] = {inq: ids};
+                        // Send notification to peer
+                        peerInstance.__create__notifications({
+                            type: "action",
+                            title: "Account approved!",
+                            description: "Your peerbuds account has been approved. Add more details now.",
+                            actionUrl: ['console', 'profile', 'edit']
+                        }, function (err, notificationInstance) {
+                            if (err) {
+                                cb(err);
+                            }
+                            else {
+                                notificationInstance.actor.add(peerInstance.id, function (err, actorInstance) {
+                                    if (err) {
+                                        cb(err);
+                                    }
+                                    else {
+                                        loopback.Email.send({
+                                            to: peerInstance.email,
+                                            from: 'Peerbuds <noreply@mx.peerbuds.com>',
+                                            subject: subject,
+                                            html: html_body
+                                        })
+                                            .then(function (response) {
+                                                console.log('email sent! - ' + response);
+                                            })
+                                            .catch(function (err) {
+                                                console.log('email error! - ' + err);
+                                            });
+                                        cb(null, { result: 'Account approved. Email sent to Owner.' });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+            else {
+                err = new Error(g.f('Invalid Peer with ID: %s', id));
+                err.statusCode = 400;
+                err.code = 'INVALID_PEER';
+                cb(err);
+            }
 
-            AccessToken.destroyAll({userId: {inq: ids}}, next);
         });
-    });*/
+    };
+
+    Peer.reject = function (id, req, cb) {
+        // Find the collection by given ID
+        Peer.findById(id, function (err, peerInstance) {
+            if (!err && peerInstance !== null) {
+                var userId = peerInstance.toJSON().id;
+                peerInstance.accountVerified = false;
+                Peer.upsertWithWhere({ id: peerInstance.id }, peerInstance, function (err, newpeerInstance) {
+                    if (err) {
+                        console.log(err);
+                        err = new Error(g.f('Error updating Peer.'));
+                        err.statusCode = 400;
+                        err.code = 'DB_ERROR';
+                        cb(err);
+                    }
+                    else {
+                        var message = {};
+                        var subject = 'Account rejected';
+
+                        var renderer = loopback.template(path.resolve(__dirname, '../../server/views/accountRejected.ejs'));
+                        var html_body = renderer(message);
+
+                        // Send notification to peer
+                        peerInstance.__create__notifications({
+                            type: "action",
+                            title: "Account approved!",
+                            description: "Your peerbuds account was rejected. Edit your details and re-submit.",
+                            actionUrl: ['console', 'profile', 'verification']
+                        }, function (err, notificationInstance) {
+                            if (err) {
+                                cb(err);
+                            }
+                            else {
+                                notificationInstance.actor.add(peerInstance.id, function (err, actorInstance) {
+                                    if (err) {
+                                        cb(err);
+                                    }
+                                    else {
+                                        loopback.Email.send({
+                                            to: peerInstance.email,
+                                            from: 'Peerbuds <noreply@mx.peerbuds.com>',
+                                            subject: subject,
+                                            html: html_body
+                                        })
+                                            .then(function (response) {
+                                                console.log('email sent! - ' + response);
+                                            })
+                                            .catch(function (err) {
+                                                console.log('email error! - ' + err);
+                                            });
+                                        cb(null, { result: 'Account rejected. Email sent to Owner.' });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+            else {
+                err = new Error(g.f('Invalid Peer with ID: %s', id));
+                err.statusCode = 400;
+                err.code = 'INVALID_PEER';
+                cb(err);
+            }
+
+        });
+    };
+
 
     //noinspection JSCheckFunctionSignatures
     Peer.observe('before delete', function (ctx, next) {
@@ -412,7 +871,7 @@ module.exports = function (Peer) {
                 cb(err);
             } else {
                 Peer.dataSource.connector.execute(
-                    "match (p:peer {username: '" + peer.username + "'}) create (p)-[r:hasToken]->(token:UserToken {id: '" + guid + "', ttl: '" + ttl + "', created: timestamp()}) return token",
+                    "match (p:peer {email: '" + peer.email + "'}) create (p)-[r:hasToken]->(token:UserToken {id: '" + guid + "', ttl: '" + ttl + "'}) return token",
                     cb
                 );
             }
@@ -421,23 +880,22 @@ module.exports = function (Peer) {
         return cb.promise;
     };
 
-    Peer.prototype.createProfile = function (profileModel, user, cb) {
+    Peer.prototype.createProfile = function (profileModel, profileObject, user, cb) {
         if (cb === undefined && typeof options === 'function') {
             // createAccessToken(ttl, cb)
             cb = options;
             options = undefined;
         }
         cb = cb || utils.createPromiseCallback();
-        console.log(user.Id);
-        var emptyProfile = { "userId": user.id };
+        //console.log(user.Id);
 
-        profileModel.create(emptyProfile, function (err, profileNode) {
+        profileModel.create(profileObject, function (err, profileNode) {
             if (!err && profileNode) {
                 if (profileNode.isNewInstance)
                     console.log("Created new user entry");
 
                 profileModel.dataSource.connector.execute(
-                    "match (p:peer {username: '" + user.username + "'}), (pro:profile {id: '" + profileNode.id + "'}) merge (p)-[r:peer_has_profile {id: '" + uuid.v4() + "', sourceId: p.id, targetId: pro.id}]->(pro) return r",
+                    "match (p:peer {email: '" + user.email + "'}), (pro:profile {id: '" + profileNode.id + "'}) merge (p)-[r:peer_has_profile {id: '" + uuid.v4() + "', sourceId: p.id, targetId: pro.id}]->(pro) return r",
                     function (err, results) {
                         if (!err) {
                             cb(err, user, results);
@@ -455,6 +913,42 @@ module.exports = function (Peer) {
         return cb.promise;
     };
 
+    Peer.prototype.updateProfileNode = function (profileModel, profileObject, user, cb) {
+        Peer.findById(user.id, function (err, modelInstance) {
+            if (err) {
+                cb(err);
+            } else {
+                console.log(modelInstance);
+                if (modelInstance) {
+                    modelInstance.profiles((err, instances) => {
+                        if (err) {
+                            cb(err);
+                        } else {
+                            if (instances[0]) {
+                                var objId = instances[0].id;
+                                Peer.app.models.profile.upsertWithWhere({ "id": objId }, profileObject, function (err, updatedInstance) {
+                                    if (err) {
+                                        cb(err)
+                                    }
+                                    else {
+                                        cb(null, user, updatedInstance)
+                                    }
+                                });
+                            } else {
+                                console.log("not Added");
+                                cb();
+                            }
+                        }
+                    });
+                } else {
+                    console.log("Not Found");
+                    cb();
+                }
+
+            }
+
+        });
+    };
 
     Peer.prototype.hasPassword = function (plain, fn) {
         fn = fn || utils.createPromiseCallback();
@@ -490,7 +984,11 @@ module.exports = function (Peer) {
      * Hash the plain password
      */
     Peer.hashPassword = function (plain) {
-        this.validatePassword(plain);
+        try {
+            this.validatePassword(plain);
+        } catch (err) {
+            return err;
+        }
         var salt = bcrypt.genSaltSync(this.settings.saltWorkFactor || SALT_WORK_FACTOR);
         return bcrypt.hashSync(plain, salt);
     };
@@ -526,6 +1024,19 @@ module.exports = function (Peer) {
             cb
         );*/
 
+    };
+
+
+    Peer.getCookieUserId = function (req) {
+
+        var cookieArray = req.headers.cookie.split(';');
+        var cookie = '';
+        for (var i = 0; i < cookieArray.length; i++) {
+            if (cookieArray[i].split('=')[0].trim() === 'userId') {
+                cookie = cookieArray[i].split('=')[1].trim();
+            }
+        }
+        return cookie.split(/[ \:.]+/)[0].substring(4);
     };
 
     /*!
@@ -576,6 +1087,15 @@ module.exports = function (Peer) {
             next();
         });
 
+        PeerModel.afterRemote('prototype.__create__joinedrooms', function (ctx, newRoomInstance, next) {
+            console.log("PeerModel create");
+            var room = app.models.room;
+            room.createTwilioRoom(newRoomInstance, function (err, data) {
+                console.log("Room : " + JSON.stringify(data));
+            });
+            next();
+        });
+
         PeerModel.remoteMethod(
             'confirm',
             {
@@ -583,9 +1103,47 @@ module.exports = function (Peer) {
                 accepts: [
                     { arg: 'uid', type: 'string', required: true },
                     { arg: 'token', type: 'string', required: true },
-                    { arg: 'redirect', type: 'string' }
+                    { arg: 'redirect', type: 'string' },
+                    { arg: 'req', type: 'object', http: { source: 'req' } },
+                    { arg: 'res', type: 'object', http: { source: 'res' } }
                 ],
-                http: { verb: 'get', path: '/confirm' }
+                http: { verb: 'post', path: '/confirmEmail' }
+            }
+        );
+
+        PeerModel.remoteMethod(
+            'sendVerifyEmail',
+            {
+                description: 'Send a Verification email to user email ID with OTP and link',
+                accepts: [{ arg: 'uid', type: 'string', required: true }, { arg: 'email', type: 'string', required: true }],
+                returns: { arg: 'result', type: 'object', root: true },
+                http: { verb: 'post', path: '/sendVerifyEmail' }
+            }
+        );
+
+        PeerModel.remoteMethod(
+            'confirmSmsOTP',
+            {
+                description: 'Confirm a user registration with sms verification token.',
+                accepts: [
+                    { arg: 'req', type: 'object', http: { source: 'req' } },
+                    { arg: 'token', type: 'string', required: true }
+                ],
+                returns: { arg: 'result', type: 'object', root: true },
+                http: { verb: 'post', path: '/confirmSmsOTP' }
+            }
+        );
+
+        PeerModel.remoteMethod(
+            'sendVerifySms',
+            {
+                description: 'Send a Verification SMS to user phone with OTP',
+                accepts: [
+                    { arg: 'req', type: 'object', http: { source: 'req' } },
+                    { arg: 'phone', type: 'string', required: true }
+                ],
+                returns: { arg: 'result', type: 'object', root: true },
+                http: { verb: 'post', path: '/sendVerifySms' }
             }
         );
 
@@ -596,29 +1154,68 @@ module.exports = function (Peer) {
                 accepts: [
                     { arg: 'options', type: 'object', required: true, http: { source: 'body' } }
                 ],
-                http: { verb: 'post', path: '/reset' }
+                returns: { arg: 'response', type: 'object', root: true },
+                http: { verb: 'post', path: '/resetPassword' }
             }
         );
 
-        PeerModel.afterRemote('confirm', function (ctx, inst, next) {
-            if (ctx.args.redirect !== undefined) {
-                if (!ctx.res) {
-                    return next(new Error(g.f('The transport does not support HTTP redirects.')));
-                }
-                ctx.res.location(ctx.args.redirect);
-                ctx.res.status(302);
+        PeerModel.remoteMethod(
+            'changePassword',
+            {
+                description: 'Change password for a user with userId and oldPassword.',
+                accepts: [
+                    { arg: 'options', type: 'object', required: true, http: { source: 'body' } }
+                ],
+                returns: { arg: 'response', type: 'object', root: true },
+                http: { verb: 'post', path: '/changePassword' }
             }
-            next();
-        });
+        );
+
+        PeerModel.remoteMethod(
+            'forgotPassword',
+            {
+                description: 'Forgot password for a user with email.',
+                accepts: [
+                    { arg: 'req', type: 'object', http: { source: 'req' } },
+                    { arg: 'email', type: 'string', required: true }
+                ],
+                returns: { arg: 'response', type: 'object', root: true },
+                http: { verb: 'post', path: '/forgotPassword' }
+            }
+        );
 
         PeerModel.remoteMethod(
             'userCalendar',
             {
                 accepts: [
-                    { arg: 'id', type: 'string', required: true },
+                    { arg: 'id', type: 'string', required: true }
                 ],
                 returns: { arg: 'calendarObject', type: 'object', root: true },
                 http: { path: '/:id/eventCalendar', verb: 'get' }
+            }
+        );
+
+        PeerModel.remoteMethod(
+            'approve',
+            {
+                accepts: [
+                    { arg: 'id', type: 'string', required: true },
+                    { arg: 'req', type: 'object', http: { source: 'req' } }
+                ],
+                returns: { arg: 'result', type: 'object', root: true },
+                http: { path: '/:id/approve', verb: 'post' }
+            }
+        );
+
+        PeerModel.remoteMethod(
+            'reject',
+            {
+                accepts: [
+                    { arg: 'id', type: 'string', required: true },
+                    { arg: 'req', type: 'object', http: { source: 'req' } }
+                ],
+                returns: { arg: 'result', type: 'object', root: true },
+                http: { path: '/:id/reject', verb: 'post' }
             }
         );
 
@@ -627,7 +1224,7 @@ module.exports = function (Peer) {
         });
 
         return PeerModel;
-    }
+    };
 
     /*!
      * Setup the base user.
@@ -644,6 +1241,7 @@ module.exports = function (Peer) {
         }
         next();
     });
+
 
     //noinspection JSCheckFunctionSignatures
     Peer.observe('before save', function prepareForTokenInvalidation(ctx, next) {

@@ -1,0 +1,47 @@
+<html>
+
+<head>
+    <title>Peerbuds</title>
+</head>
+
+<body>
+    <div style="font-family: Helvetica; padding: 50px 70px; background-color: #ffffff; color: #333333; font-size: 17px;">
+        <!-- Header -->
+        <div style="vertical-align: middle; ">
+            <img src="https://peerbuds.com/assets/images/pb_logo.png" width="35px" height="35px" >  <span style="position: relative; top: -14px; color: #ff5b5f"><b>&nbsp;peerbuds</b></span>
+        </div>
+        <!-- Title -->
+        <div style="font-weight: 800; font-size: 30px; margin-top: 40px;">
+            Your payment receipt
+        </div>
+        <!-- Body -->
+        <div style="font-size: 17px; margin-top: 25px;">
+            <p style="display:block;font-family:Helvetica Neue,Helvetica,Roboto,Arial,sans-serif;font-size:17px;font-weight:300;line-height:100%;margin:0;padding:12px 0px;">
+                You paid <b><%= currency %><%= amount %></b> at Peerbuds
+            </p>
+            <hr>
+            <p style="display:block;font-family:Helvetica Neue,Helvetica,Roboto,Arial,sans-serif;font-size:17px;font-weight:300;line-height:100%;margin:0;padding:2px 0px;">
+                <%= cardName %> - <b><%= cardBrand %></b> <%= cardLast4 %>
+            </p>
+            <hr>
+            <p style="color:#777777;display:block;font-family:Helvetica Neue,Helvetica,Roboto,Arial,sans-serif;font-size:14px;font-weight:300;line-height:150%;margin:0;padding:7px 0px;">
+                Receipt # <%= chargeId %>
+            </p>
+        </div>
+        <!-- Signature -->
+        <div style="font-size: 17px; margin-top: 30px; line-height: 24px;">
+            Cheers,
+            <br>
+            Peerbuds Team
+        </div>
+        <!-- Footer -->
+        <hr style="margin-top: 40px; background-color: #dbdbdb;">
+        <div style="font-size: 13px; color: #bbbbbb; margin-top: 30px; font-weight: 300">
+            Sent with <span style="font-size: 11px;">&hearts;</span> from Peerbuds
+            <br><br>
+            Peerbuds, Inc., 4580 Automall Pkwy, Fremont, CA 94538
+        </div>
+    </div>
+</body>
+
+</html>

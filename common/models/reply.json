@@ -6,16 +6,27 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "AddPeerRelation": {
+      "relationName": [
+        "upvotes"
+      ]
+    },
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
+  },
   "properties": {
+    "id": {
+      "type": "string",
+      "id": true
+    },
     "description": {
       "type": "string",
       "required": true
-    },
-    "created": {
-      "type": "date"
-    },
-    "modified": {
-      "type": "date"
     }
   },
   "validations": [],
@@ -25,6 +36,13 @@
       "model": "peer",
       "foreignKey": "sourceId",
       "through": "reply_has_replier",
+      "keyThrough": "targetId"
+    },
+    "upvotes": {
+      "type": "hasMany",
+      "model": "upvote",
+      "foreignKey": "sourceId",
+      "through": "reply_has_upvote",
       "keyThrough": "targetId"
     }
   },

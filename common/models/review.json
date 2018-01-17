@@ -5,6 +5,14 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
+  },
   "properties": {
     "description": {
       "type": "string"
@@ -15,11 +23,11 @@
     "score": {
       "type": "number"
     },
-    "created": {
-      "type": "date"
+    "collectionId": {
+      "type": "string"
     },
-    "modified": {
-      "type": "date"
+    "collectionCalendarId": {
+      "type": "string"
     }
   },
   "validations": [],
@@ -30,6 +38,20 @@
       "foreignKey": "sourceId",
       "through": "review_has_reviewer",
       "keyThrough": "targetId"
+    },
+    "collections": {
+      "type": "hasMany",
+      "model": "collection",
+      "foreignKey": "targetId",
+      "through": "collection_has_review",
+      "keyThrough": "sourceId"
+    },
+    "reviewedPeer": {
+      "type": "hasMany",
+      "model": "peer",
+      "foreignKey": "targetId",
+      "through": "peer_has_review",
+      "keyThrough": "sourceId"
     }
   },
   "acls": [],

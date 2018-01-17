@@ -5,6 +5,14 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
+  },
   "properties": {
     "id": {
       "type": "string",
@@ -25,12 +33,42 @@
     "joining_date": {
       "type": "date"
     },
-    "languages": {
+    "preferred_language": {
+      "type": "string",
+      "default": "english"
+    },
+    "other_languages": {
       "type": [
         "string"
       ]
     },
-    "location": {
+    "currency": {
+      "type": "string",
+      "default": "usd"
+    },
+    "gender": {
+      "type": "string"
+    },
+    "timezone": {
+      "type": "string",
+      "default": "pst"
+    },
+    "dobMonth": {
+      "type": "string"
+    },
+    "dobYear": {
+      "type": "number"
+    },
+    "dobDay": {
+      "type": "number"
+    },
+    "location_string": {
+      "type": "string"
+    },
+    "location_lat": {
+      "type": "string"
+    },
+    "location_lng": {
       "type": "string"
     },
     "experience_type": {
@@ -65,6 +103,13 @@
     },
     "onboardingStage": {
       "type": "number"
+    },
+    "promoOptIn": {
+      "type": "boolean",
+      "default": false
+    },
+    "vat_number": {
+      "type": "string"
     }
   },
   "validations": [],
@@ -75,6 +120,34 @@
       "foreignKey": "targetId",
       "through": "peer_has_profile",
       "keyThrough": "sourceId"
+    },
+    "work": {
+      "type": "hasMany",
+      "model": "workexperience",
+      "foreignKey": "sourceId",
+      "through": "profile_has_workexperience",
+      "keyThrough": "targetId"
+    },
+    "education": {
+      "type": "hasMany",
+      "model": "education",
+      "foreignKey": "sourceId",
+      "through": "profile_has_education",
+      "keyThrough": "targetId"
+    },
+    "phone_numbers": {
+      "type": "hasMany",
+      "model": "phone",
+      "foreignKey": "sourceId",
+      "through": "profile_has_phoneNumber",
+      "keyThrough": "targetId"
+    },
+    "emergency_contacts": {
+      "type": "hasMany",
+      "model": "phone",
+      "foreignKey": "sourceId",
+      "through": "profile_has_emergencyContact",
+      "keyThrough": "targetId"
     }
   },
   "acls": [],

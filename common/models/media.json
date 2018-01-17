@@ -5,6 +5,14 @@
   "options": {
     "validateUpsert": true
   },
+  "mixins": {
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
+  },
   "properties": {
     "name": {
       "type": "string"
@@ -18,10 +26,24 @@
     "url": {
       "type": "string",
       "required": true
+    },
+    "originalFilename": {
+      "type": "string"
+    },
+    "size": {
+      "type": "number"
     }
   },
   "validations": [],
-  "relations": {},
+  "relations": {
+    "owner": {
+      "type": "hasMany",
+      "model": "peer",
+      "foreignKey": "sourceId",
+      "through": "media_has_owner",
+      "keyThrough": "targetId"
+    }
+  },
   "acls": [],
   "methods": {}
 }

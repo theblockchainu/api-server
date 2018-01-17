@@ -4,9 +4,15 @@
   "idInjection": true,
   "options": {
     "validateUpsert": true,
-    "caseSensitiveEmail": true
+    "caseSensitiveEmail": true,
+    "emailVerificationRequired": true
   },
   "mixins": {
+    "AddPeerRelation": {
+      "relationName": [
+        "reviewsAboutYou"
+      ]
+    },
     "HasOne": {
       "relations": [
         {
@@ -20,10 +26,20 @@
       "relations": [
         {
           "model": "topic",
-          "hasManyRelation": "topics"
+          "hasManyRelation": "topicsLearning"
+        },
+        {
+          "model": "topic",
+          "hasManyRelation": "topicsTeaching"
         }
       ]
-    }
+    },
+    "TimeStamp": {
+      "createdAt": "createdAt",
+      "updatedAt": "updatedAt",
+      "required": false
+    },
+    "GlobalUtils": {}
   },
   "hidden": [
     "password",
@@ -47,11 +63,33 @@
     "phone": {
       "type": "number"
     },
+    "phoneVerified": {
+      "type": "boolean",
+      "default": false
+    },
     "emailVerified": {
-      "type": "boolean"
+      "type": "boolean",
+      "default": false
+    },
+    "phoneVerificationToken": {
+      "type": "string"
     },
     "verificationToken": {
       "type": "string"
+    },
+    "verificationTokenTime": {
+      "type": "string"
+    },
+    "accountVerified": {
+      "type": "boolean",
+      "default": false
+    },
+    "verificationIdUrl": {
+      "type": "string"
+    },
+    "isAdmin": {
+      "type": "boolean",
+      "default": false
     }
   },
   "validations": [],
@@ -72,16 +110,20 @@
     "credentials": {
       "type": "hasMany",
       "model": "userCredential",
-      "foreignKey": "userId",
-      "options": {
-        "disableInclude": true
-      }
+      "foreignKey": "userId"
     },
-    "topics": {
+    "topicsLearning": {
       "type": "hasMany",
       "model": "topic",
       "foreignKey": "sourceId",
-      "through": "peer_has_topic",
+      "through": "peer_has_topiclearning",
+      "keyThrough": "targetId"
+    },
+    "topicsTeaching": {
+      "type": "hasMany",
+      "model": "topic",
+      "foreignKey": "sourceId",
+      "through": "peer_has_topicteaching",
       "keyThrough": "targetId"
     },
     "communities": {
@@ -91,12 +133,26 @@
       "through": "community_has_member",
       "keyThrough": "sourceId"
     },
+    "ownedCommunities": {
+      "type": "hasMany",
+      "model": "community",
+      "foreignKey": "sourceId",
+      "through": "peer_has_community",
+      "keyThrough": "targetId"
+    },
     "collections": {
       "type": "hasMany",
       "model": "collection",
-      "foreignKey": "targetId",
+      "foreignKey": "sourceId",
       "through": "collection_has_participant",
-      "keyThrough": "sourceId"
+      "keyThrough": "targetId"
+    },
+    "ownedCollections": {
+      "type": "hasMany",
+      "model": "collection",
+      "foreignKey": "sourceId",
+      "through": "peer_has_collection",
+      "keyThrough": "targetId"
     },
     "following": {
       "type": "hasMany",
@@ -131,6 +187,139 @@
       "model": "room",
       "foreignKey": "sourceId",
       "through": "peer_has_joinedroom",
+      "keyThrough": "targetId"
+    },
+    "transactions": {
+      "type": "hasMany",
+      "model": "transaction",
+      "foreignKey": "sourceId",
+      "through": "peer_has_transaction",
+      "keyThrough": "targetId"
+    },
+    "payoutaccs": {
+      "type": "hasMany",
+      "model": "payoutacc",
+      "foreignKey": "sourceId",
+      "through": "peer_has_payoutacc",
+      "keyThrough": "targetId"
+    },
+    "reviewsByYou": {
+      "type": "hasMany",
+      "model": "review",
+      "foreignKey": "targetId",
+      "through": "review_has_reviewer",
+      "keyThrough": "sourceId"
+    },
+    "reviewsAboutYou": {
+      "type": "hasMany",
+      "model": "review",
+      "foreignKey": "sourceId",
+      "through": "peer_has_review",
+      "keyThrough": "targetId"
+    },
+    "notifications": {
+      "type": "hasMany",
+      "model": "notification",
+      "foreignKey": "sourceId",
+      "through": "peer_has_notification",
+      "keyThrough": "targetId"
+    },
+    "flags": {
+      "type": "hasMany",
+      "model": "flag",
+      "foreignKey": "sourceId",
+      "through": "peer_has_flag",
+      "keyThrough": "targetId"
+    },
+    "medias": {
+      "type": "hasMany",
+      "model": "media",
+      "foreignKey": "targetId",
+      "through": "media_has_owner",
+      "keyThrough": "sourceId"
+    },
+    "views": {
+      "type": "hasMany",
+      "model": "views",
+      "foreignKey": "targetId",
+      "through": "view_has_viewer",
+      "keyThrough": "sourceId"
+    },
+    "rsvps": {
+      "type": "hasMany",
+      "model": "rsvp",
+      "foreignKey": "targetId",
+      "through": "rsvp_has_peer",
+      "keyThrough": "sourceId"
+    },
+    "socketconnections": {
+      "type": "hasMany",
+      "model": "socket_connection",
+      "foreignKey": "sourceId",
+      "through": "peer_has_socketconnection",
+      "keyThrough": "targetId"
+    },
+    "bookmarks": {
+      "type": "hasMany",
+      "model": "bookmark",
+      "foreignKey": "targetId",
+      "through": "bookmark_has_bookmarker",
+      "keyThrough": "sourceId"
+    },
+    "messages": {
+      "type": "hasMany",
+      "model": "bookmark",
+      "foreignKey": "targetId",
+      "through": "message_has_peer",
+      "keyThrough": "sourceId"
+    },
+    "readreceipts": {
+      "type": "hasMany",
+      "model": "read",
+      "foreignKey": "targetId",
+      "through": "read_has_peer",
+      "keyThrough": "sourceId"
+    },
+    "deliveryreceipts": {
+      "type": "hasMany",
+      "model": "delivery",
+      "foreignKey": "targetId",
+      "through": "delivery_has_peer",
+      "keyThrough": "sourceId"
+    },
+    "questions": {
+      "type": "hasMany",
+      "model": "question",
+      "foreignKey": "sourceId",
+      "through": "peer_has_question",
+      "keyThrough": "targetId"
+    },
+    "followingQuestions": {
+      "type": "hasMany",
+      "model": "question",
+      "foreignKey": "targetId",
+      "through": "question_has_follower",
+      "keyThrough": "sourceId"
+    },
+    "answers": {
+      "type": "hasMany",
+      "model": "answer",
+      "foreignKey": "sourceId",
+      "through": "peer_has_answer",
+      "keyThrough": "targetId"
+    },
+    "links": {
+      "type": "hasMany",
+      "model": "link",
+      "foreignKey": "sourceId",
+      "through": "peer_has_link",
+      "keyThrough": "targetId"
+    },
+    "contents": {
+      "type": "hasMany",
+      "model": "content",
+      "foreignKey": "sourceId",
+      "through": "peer_has_content",
       "keyThrough": "targetId"
     }
   },
