@@ -22,7 +22,7 @@
     "failureRedirect": "https://theblockchainu.com/login",
     "failureFlash": true,
     "setAccessToken": true,
-    "json": true,
+    "json": false,
     "domain": ".theblockchainu.com"
   },
   "facebook-login": {
