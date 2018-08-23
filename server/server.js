@@ -165,6 +165,7 @@ app.post('/signup', function (req, res, next) {
     profileObject.dobYear = req.body.dobYear;
     profileObject.promoOptIn = req.body.promoOptIn;
     let returnTo = req.headers.origin + '/' + req.query.returnTo;
+    const cookieDomain = req.headers.origin.split('//')[1];
     let hashedPassword = '';
     let query;
     if (newUser.email && newUser.username) {
@@ -243,13 +244,13 @@ app.post('/signup', function (req, res, next) {
                     }
                     res.cookie('access_token', accessToken[0].token.properties.id, {
                         signed: req.signedCookies ? true : false,
-                        domain: app.get('cookieDomain'),
+                        domain: cookieDomain,
                         maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl,
                     });
                     if (user.accountVerified !== undefined) {
                         res.cookie('accountApproved', user.accountVerified.toString(), {
                             signed: req.signedCookies ? true : false,
-                            domain: app.get('cookieDomain'),
+                            domain: cookieDomain,
                             maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl,
                         });
                     }
@@ -257,7 +258,7 @@ app.post('/signup', function (req, res, next) {
                         res.cookie('currency', user.currency.toString(),
                             {
                                 signed: req.signedCookies ? true : false,
-                                domain: app.get('cookieDomain'),
+                                domain: cookieDomain,
                                 // maxAge is in ms
                                 maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl
                             });
@@ -266,14 +267,14 @@ app.post('/signup', function (req, res, next) {
                         res.cookie('timezone', user.timezone.toString(),
                             {
                                 signed: req.signedCookies ? true : false,
-                                domain: app.get('cookieDomain'),
+                                domain: cookieDomain,
                                 // maxAge is in ms
                                 maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl
                             });
                     }
                     res.cookie('userId', user.id.toString(), {
                         signed: req.signedCookies ? true : false,
-                        domain: app.get('cookieDomain'),
+                        domain: cookieDomain,
                         maxAge: rememberMe ? 315569520000 : 1000 * accessToken[0].token.properties.ttl,
                     });
                     return res.redirect(returnTo);
