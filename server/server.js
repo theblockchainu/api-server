@@ -76,7 +76,8 @@ let originsWhitelist = [
     'null',
     'localhost:9090',      //frontend url for development
     'localhost:8080',      //frontend url for development
-    'https://peedbuds.com'
+    'https://peedbuds.com',
+    'https://theblockchainu.com'
 ];
 let corsOptions = {
     origin: function (origin, callback) {
